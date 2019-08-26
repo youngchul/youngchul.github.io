@@ -12,6 +12,366 @@
     
     
     <item>
+      <title>Kubebuilder 사용해서 Kubernetes Controller 만들기</title>
+      <link>https://youngchul.github.io/posts/kubernetes-controller-using-kubebuilder/</link>
+      <pubDate>Mon, 26 Aug 2019 00:00:00 +0000</pubDate>
+      <author>방영철 (Youngchul Bang)</author>
+      <guid>https://youngchul.github.io/posts/kubernetes-controller-using-kubebuilder/</guid>
+      <description></description>
+      
+      <content>
+
+&lt;p&gt;&lt;a href=&#34;https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/#custom-controllers&#34; target=&#34;_blank&#34;&gt;Kubernetes Custom Controller&lt;/a&gt;를 Go 언어로 만드는 방법은 다양합니다. &lt;a href=&#34;https://github.com/kubernetes/client-go&#34; target=&#34;_blank&#34;&gt;client-go&lt;/a&gt; 라이브러리를 이용해서 &lt;a href=&#34;https://kubernetes.io/docs/concepts/overview/kubernetes-api/&#34; target=&#34;_blank&#34;&gt;Kubernetes API&lt;/a&gt;를 직접 호출하는 방식을 주로 사용하지만, &lt;a href=&#34;https://github.com/kubernetes/sample-controller&#34; target=&#34;_blank&#34;&gt;sample-controller&lt;/a&gt; 예제에서 볼 수 있듯이 &lt;a href=&#34;https://github.com/kubernetes/sample-controller/blob/master/docs/controller-client-go.md&#34; target=&#34;_blank&#34;&gt;client-go 라이브리의 동작방식과 컴포넌트들&lt;/a&gt;를 이해하고 알맞게 사용해야 합니다. &lt;a href=&#34;https://github.com/kubernetes-sigs/kubebuilder&#34; target=&#34;_blank&#34;&gt;Kubebuilder&lt;/a&gt; 또는 &lt;a href=&#34;https://github.com/operator-framework/operator-sdk&#34; target=&#34;_blank&#34;&gt;Operator SDK&lt;/a&gt; 프레임워크가 client-go 라이브러리를 올바른 방식으로 사용해서 Kubernetes Controller를 보다 쉽게 만들 수 있도록 도와줍니다.&lt;/p&gt;
+
+&lt;p&gt;이 글에서는 Kubebuilder v2 버전을 사용해서 Memcached Controller 만드는 방법을 소개합니다. Memcached Controller 코드는 Operator SDK 예제 중 하나인 &lt;a href=&#34;https://github.com/operator-framework/operator-sdk-samples/tree/master/memcached-operator&#34; target=&#34;_blank&#34;&gt;memcached-operator&lt;/a&gt;를 참고했습니다. 결과물은 &lt;a href=&#34;https://github.com/youngchul/memcached-controller&#34; target=&#34;_blank&#34;&gt;memcached-controller&lt;/a&gt; 저장소에 있습니다.&lt;/p&gt;
+
+&lt;h2 id=&#34;kubebuilder&#34;&gt;Kubebuilder&lt;/h2&gt;
+
+&lt;p&gt;Kubebuilder는 CRDs를 사용하는 Kubernetes APIs를 만들기 위한 프레임워크라고 소개합니다.&lt;/p&gt;
+
+&lt;blockquote&gt;
+&lt;p&gt;Kubebuilder is a framework for building Kubernetes APIs using custom resource definitions (CRDs).
+&lt;a href=&#34;https://github.com/kubernetes-sigs/kubebuilder#kubebuilder&#34; target=&#34;_blank&#34;&gt;https://github.com/kubernetes-sigs/kubebuilder#kubebuilder&lt;/a&gt;&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;p&gt;최근에 &lt;a href=&#34;https://github.com/kubernetes-sigs/kubebuilder/releases/tag/v2.0.0&#34; target=&#34;_blank&#34;&gt;Kubebuilder v2.0.0&lt;/a&gt; 버전이 출시됐습니다. 최신 버전은 &lt;a href=&#34;https://github.com/kubernetes-sigs/kubebuilder/releases&#34; target=&#34;_blank&#34;&gt;releases&lt;/a&gt; 페이지에서 확인 할 수 있습니다.&lt;/p&gt;
+
+&lt;h2 id=&#34;kubebuilder-설치&#34;&gt;Kubebuilder 설치&lt;/h2&gt;
+
+&lt;p&gt;먼저, &lt;a href=&#34;https://blog.golang.org/using-go-modules&#34; target=&#34;_blank&#34;&gt;Go modules&lt;/a&gt;를 지원하는 go 1.11 버전 이상이 필요합니다. 그리고 &lt;a href=&#34;https://github.com/kubernetes-sigs/kustomize&#34; target=&#34;_blank&#34;&gt;kustomize&lt;/a&gt; 3.1.0 버전 이상도 설치해야 합니다. macOS에서는 &lt;code&gt;brew install&lt;/code&gt; 명령으로 간편하게 설치합니다. 다른 환경에서는 &lt;a href=&#34;https://golang.org/doc/install&#34; target=&#34;_blank&#34;&gt;Go 설치 문서&lt;/a&gt;와 &lt;a href=&#34;https://sigs.k8s.io/kustomize/docs/INSTALL.md&#34; target=&#34;_blank&#34;&gt;Kustomize 설치 문서&lt;/a&gt;를 참고해서 설치 할 수 있습니다.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ brew install go kustomize
+[...]
+
+# 설치 확인
+$ go version
+go version go1.12.9 darwin/amd64
+$ kustomize version
+Version: {KustomizeVersion:3.1.0 GitCommit:95f3303493fdea243ae83b767978092396169baf BuildDate:2019-07-26T19:21:45+01:00 GoOs:darwin GoArch:amd64}
+$
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Kubebuilder는 &lt;a href=&#34;https://book.kubebuilder.io/quick-start.html#installation&#34; target=&#34;_blank&#34;&gt;설치 문서&lt;/a&gt; 설명대로 바이너리를 다운로드 받아서 설치합니다.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ os=$(go env GOOS)
+$ arch=$(go env GOARCH)
+
+# download kubebuilder and extract it to tmp
+$ curl -sL https://go.kubebuilder.io/dl/2.0.0/${os}/${arch} | tar -xz -C /tmp/
+
+# move to a long-term location and put it on your path
+# (you&#39;ll need to set the KUBEBUILDER_ASSETS env var if you put it somewhere else)
+sudo mv /tmp/kubebuilder_2.0.0_${os}_${arch} /usr/local/kubebuilder
+export PATH=$PATH:/usr/local/kubebuilder/bin
+
+# 설치 확인
+$ kubebuilder version
+Version: version.Version{KubeBuilderVersion:&amp;quot;2.0.0&amp;quot;, KubernetesVendor:&amp;quot;1.14.1&amp;quot;, GitCommit:&amp;quot;b31cc5d96dbc91749eb49c2cf600bd951a46d4bd&amp;quot;, BuildDate:&amp;quot;2019-08-22T23:39:53Z&amp;quot;, GoOs:&amp;quot;unknown&amp;quot;, GoArch:&amp;quot;unknown&amp;quot;}
+$
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=&#34;프로젝트-만들기&#34;&gt;프로젝트 만들기&lt;/h2&gt;
+
+&lt;p&gt;디렉토리를 하나 만듭니다. 그리고 Go modules를 사용하도록 명시적으로 &lt;code&gt;GO111MODULE&lt;/code&gt; 환경 변수를 설정합니다.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ mkdir -p memcached-controller
+$ cd memcached-controller
+$ export GO111MODULE=on
+$
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;이 예제에서 만드는 Memcached 리소스는 &lt;code&gt;cache.example.com/v1alpha1&lt;/code&gt; API Group과 &lt;code&gt;Memcached&lt;/code&gt; Kind로 정의합니다. 프로젝트를 만들 때, &lt;code&gt;--domain&lt;/code&gt; 옵션에 &lt;code&gt;example.com&lt;/code&gt; 도메인을 사용하고, &lt;code&gt;--repo&lt;/code&gt; 옵션에 저장소 주소를 알려줍니다.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubebuilder init --domain example.com --repo github.com/youngchul/memcached-controller
+go mod tidy
+Running make...
+make
+/Users/youngchul/go/bin/controller-gen object:headerFile=./hack/boilerplate.go.txt paths=&amp;quot;./...&amp;quot;
+go fmt ./...
+go vet ./...
+go build -o bin/manager main.go
+Next: Define a resource with:
+$ kubebuilder create api
+$
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;프로젝트에 필요한 기본적인 디렉토리와 파일이 아래와 같이 만들어집니다.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ tree -L 1 -F .
+.
+├── Dockerfile
+├── Makefile
+├── PROJECT
+├── bin/
+├── config/
+├── go.mod
+├── go.sum
+├── hack/
+└── main.go
+
+3 directories, 6 files
+$
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;주요 파일은 다음과 같습니다.&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;go.mod&lt;/code&gt;: Go module 경로와 필요한 패키지 정보가 기록됩니다. Kubebuilder v2 버전에서 사용하는 템플릿은 &lt;a href=&#34;https://github.com/kubernetes-sigs/kubebuilder/blob/v2.0.0/pkg/scaffold/v2/gomod.go#L41-L47&#34; target=&#34;_blank&#34;&gt;pkg/scaffold/v2/gomod.go&lt;/a&gt; 파일에서 확인 할 수 있습니다.&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;Makefile&lt;/code&gt;: 컨트롤러를 만들고 배포하는 make 타켓들이 있습니다. &lt;a href=&#34;https://github.com/kubernetes-sigs/kubebuilder/blob/v2.0.0/pkg/scaffold/v2/makefile.go#L46-L113&#34; target=&#34;_blank&#34;&gt;pkg/scaffold/v2/makefile.go&lt;/a&gt; 파일에서 Makefile 템플릿을 볼 수 있습니다.&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;PROJECT&lt;/code&gt;: Kubebuilder 메타데이터가 있습니다. version, domain, repo 정보가 기록됩니다.&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;config/&lt;/code&gt;: CRD와 컨트롤러를 클러스터에 배포 할 때 사용되는 설정 파일들이 있습니다.&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;main.go&lt;/code&gt;: 컨트롤러와 메니저를 만들고 실행하는 &lt;code&gt;main()&lt;/code&gt; 함수가 있습니다.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;&lt;code&gt;kubebuilder init&lt;/code&gt; 명령으로 생성되는 자세한 파일 내용은 &lt;a href=&#34;https://github.com/youngchul/memcached-controller/commit/ec352f0c686f1038d9967d70005b8df07c49b9b0&#34; target=&#34;_blank&#34;&gt;여기&lt;/a&gt;에서 확인 할 수 있습니다.&lt;/p&gt;
+
+&lt;h2 id=&#34;api-만들기&#34;&gt;API 만들기&lt;/h2&gt;
+
+&lt;p&gt;Memcached 리소스와 컨트롤러를 만듭니다. 우선, &lt;code&gt;kubebuilder create api&lt;/code&gt; 명령으로 뼈대를 생성합니다.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubebuilder create api --group cache --version v1alpha1 --kind Memcached
+Create Resource [y/n]
+y
+Create Controller [y/n]
+y
+Writing scaffold for you to edit...
+api/v1alpha1/memcached_types.go
+controllers/memcached_controller.go
+Running make...
+/Users/youngchul/go/bin/controller-gen object:headerFile=./hack/boilerplate.go.txt paths=&amp;quot;./...&amp;quot;
+go fmt ./...
+go vet ./...
+go build -o bin/manager main.go
+$
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;code&gt;PROJECT&lt;/code&gt; 파일에 리소스가 추가 되고, Memcached 타입이 &lt;code&gt;api/v1alpha1/memcached_types.go&lt;/code&gt; 파일에 정의되며, 컨트롤러는 &lt;code&gt;controllers/memcached_controller.go&lt;/code&gt; 파일에 있습니다. &lt;code&gt;kubebuilder create api&lt;/code&gt; 명령으로 생성되는 자세한 파일 내용은 &lt;a href=&#34;https://github.com/youngchul/memcached-controller/commit/32a23c52f9b00b4f9df72bc96aa7475e5921b987&#34; target=&#34;_blank&#34;&gt;여기&lt;/a&gt;에서 확인 할 수 있습니다.&lt;/p&gt;
+
+&lt;h3 id=&#34;spec과-status-필드-추가하기&#34;&gt;Spec과 Status 필드 추가하기&lt;/h3&gt;
+
+&lt;p&gt;Memcached 타입에 원하는 Spec과 Status 필드를 추가합니다. &lt;code&gt;MemcachedSpec.Size&lt;/code&gt; 필드는 deployment의 replicas 값으로 사용되고, &lt;code&gt;MemcachedStatus.Nodes&lt;/code&gt; 필드는 memcached가 실행 중인 pods 이름으로 갱신됩니다. Operator SDK 예제인 &lt;a href=&#34;https://github.com/operator-framework/operator-sdk-samples/blob/bd30254f3a7e3943fdbae33e9b6992bce1e07755/memcached-operator/pkg/apis/cache/v1alpha1/memcached_types.go#L10-L20&#34; target=&#34;_blank&#34;&gt;Memcached Operator 코드&lt;/a&gt;를 참고해서 아래와 같이 필드를 추가합니다.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;// MemcachedSpec defines the desired state of Memcached
+type MemcachedSpec struct {
+    // Size is the size of the memcached deployment
+    Size int32 `json:&amp;quot;size&amp;quot;`
+}
+
+// MemcachedStatus defines the observed state of Memcached
+type MemcachedStatus struct {
+    // Nodes are the names of the memcached pods
+    Nodes []string `json:&amp;quot;nodes&amp;quot;`
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Memcached 타입을 변경하면 &lt;code&gt;api/v1alpha1/zz_generated.deepcopy.go&lt;/code&gt; 파일을 다시 생성해야 합니다. &lt;code&gt;make generate&lt;/code&gt; 명령으로 &lt;code&gt;controller-gen&lt;/code&gt; 도구를 실행해서 파일을 다시 만듭니다. 그리고 CRD와 ClusterRole도 &lt;code&gt;make manifests&lt;/code&gt; 명령으로 &lt;code&gt;controller-gen&lt;/code&gt;을 실행해서 갱신합니다.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ make generate
+/Users/youngchul/go/bin/controller-gen object:headerFile=./hack/boilerplate.go.txt paths=&amp;quot;./...&amp;quot;
+$ make manifests
+/Users/youngchul/go/bin/controller-gen &amp;quot;crd:trivialVersions=true&amp;quot; rbac:roleName=manager-role webhook paths=&amp;quot;./...&amp;quot; output:crd:artifacts:config=config/crd/bases
+$
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Spec과 Status 필드를 추가하고 생성된 파일 내용은 &lt;a href=&#34;https://github.com/youngchul/memcached-controller/commit/98175721e36f693d96d1e58c87dd9fb92b595978&#34; target=&#34;_blank&#34;&gt;여기&lt;/a&gt;에서 확인 할 수 있습니다.&lt;/p&gt;
+
+&lt;h3 id=&#34;컨트롤러-로직-추가하기&#34;&gt;컨트롤러 로직 추가하기&lt;/h3&gt;
+
+&lt;p&gt;Memcached 리소스가 추가/변경/삭제되는 이벤트가 발생 할 때마다 &lt;a href=&#34;https://godoc.org/sigs.k8s.io/controller-runtime/pkg/reconcile#Reconciler&#34; target=&#34;_blank&#34;&gt;Reconcile()&lt;/a&gt; 메소드가 호출되고, 여기에서 다음과 같은 동작을 수행합니다.&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;이벤트가 발생한 Memcached 인스턴스를 가져옵니다.&lt;/li&gt;
+&lt;li&gt;Deployment 인스턴스가 존재하는지 확인해서 없으면 새로 만듭니다.&lt;/li&gt;
+&lt;li&gt;Service 인스턴스가 존재하는지 확인해서 없으면 새로 만듭니다.&lt;/li&gt;
+&lt;li&gt;Memcached 인스턴스의 &lt;code&gt;Spec.Size&lt;/code&gt;와 Deployment 인스턴스의 &lt;code&gt;Spec.Replicas&lt;/code&gt;를 비교해서 다르면 Deployment 인스턴스를 갱신합니다.&lt;/li&gt;
+&lt;li&gt;Memcached 인스턴스의 &lt;code&gt;Status.Nodes&lt;/code&gt;를 확인해서 변경이 있으면 갱신합니다.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;Reconcile() 메소드에 추가된 내용은 &lt;a href=&#34;https://github.com/youngchul/memcached-controller/commit/f2e56b5902df923ea18c27aefdb3df24851a6b12&#34; target=&#34;_blank&#34;&gt;여기&lt;/a&gt;에서 확인 할 수 있습니다.&lt;/p&gt;
+
+&lt;h2 id=&#34;테스트하기&#34;&gt;테스트하기&lt;/h2&gt;
+
+&lt;p&gt;컨트롤러를 테스트하려면 Kubernetes 클러스터가 필요합니다. &lt;a href=&#34;https://kind.sigs.k8s.io&#34; target=&#34;_blank&#34;&gt;kind&lt;/a&gt;를 이용해서 로컬에 테스트용 Kubernetes 클러스터를 쉽게 만들 수 있습니다. Go 1.11 버전 이상과 Docker가 필요합니다.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;# kind 설치
+$ GO111MODULE=&amp;quot;on&amp;quot; go get sigs.k8s.io/kind@v0.5.1
+[...]
+
+# Kubernetes 클러스터 만들기
+$ kind create cluster
+Creating cluster &amp;quot;kind&amp;quot; ...
+ ✓ Ensuring node image (kindest/node:v1.15.3) 🖼
+ ✓ Preparing nodes 📦
+ ✓ Creating kubeadm config 📜
+ ✓ Starting control-plane 🕹️
+ ✓ Installing CNI 🔌
+ ✓ Installing StorageClass 💾
+Cluster creation complete. You can now use the cluster with:
+
+export KUBECONFIG=&amp;quot;$(kind get kubeconfig-path --name=&amp;quot;kind&amp;quot;)&amp;quot;
+kubectl cluster-info
+$
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;code&gt;KUBECONFIG&lt;/code&gt; 환경 변수를 설정하고 클러스터 정보를 확인합니다.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ export KUBECONFIG=&amp;quot;$(kind get kubeconfig-path --name=&amp;quot;kind&amp;quot;)&amp;quot;
+$ kubectl cluster-info
+Kubernetes master is running at https://127.0.0.1:51801
+KubeDNS is running at https://127.0.0.1:51801/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy
+
+To further debug and diagnose cluster problems, use &#39;kubectl cluster-info dump&#39;.
+$
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;클러스터에 Memcached CRD를 설치합니다.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ make install
+/Users/youngchul/go/bin/controller-gen &amp;quot;crd:trivialVersions=true&amp;quot; rbac:roleName=manager-role webhook paths=&amp;quot;./...&amp;quot; output:crd:artifacts:config=config/crd/bases
+kustomize build config/crd | kubectl apply -f -
+customresourcedefinition.apiextensions.k8s.io/memcacheds.cache.example.com created
+
+# CRD 확인
+$ kubectl get crds
+NAME                           CREATED AT
+memcacheds.cache.example.com   2019-08-25T12:27:49Z
+$
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;이제 컨트롤러를 실행합니다. &lt;code&gt;make run&lt;/code&gt; 명령으로 컨트롤러를 로컬에서 실행합니다.  컨트롤러는 계속 실행되고 있고, 쉘 프롬프트를 반환하지 않습니다. 이 후부터는 새로운 터미널에서 명령을 실행해야 합니다.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ make run
+/Users/youngchul/go/bin/controller-gen object:headerFile=./hack/boilerplate.go.txt paths=&amp;quot;./...&amp;quot;
+go fmt ./...
+go vet ./...
+/Users/youngchul/go/bin/controller-gen &amp;quot;crd:trivialVersions=true&amp;quot; rbac:roleName=manager-role webhook paths=&amp;quot;./...&amp;quot; output:crd:artifacts:config=config/crd/bases
+go run ./main.go
+2019-08-25T12:55:45.713+0900    INFO    controller-runtime.metrics      metrics server is starting to listen    {&amp;quot;addr&amp;quot;: &amp;quot;:8080&amp;quot;}
+2019-08-25T12:55:45.715+0900    INFO    controller-runtime.controller   Starting EventSource    {&amp;quot;controller&amp;quot;: &amp;quot;memcached&amp;quot;, &amp;quot;source&amp;quot;: &amp;quot;kind source: /, Kind=&amp;quot;}
+2019-08-25T12:55:45.715+0900    INFO    controller-runtime.controller   Starting EventSource    {&amp;quot;controller&amp;quot;: &amp;quot;memcached&amp;quot;, &amp;quot;source&amp;quot;: &amp;quot;kind source: /, Kind=&amp;quot;}
+2019-08-25T12:55:45.715+0900    INFO    controller-runtime.controller   Starting EventSource    {&amp;quot;controller&amp;quot;: &amp;quot;memcached&amp;quot;, &amp;quot;source&amp;quot;: &amp;quot;kind source: /, Kind=&amp;quot;}
+2019-08-25T12:55:45.715+0900    INFO    setup   starting manager
+2019-08-25T12:55:45.715+0900    INFO    controller-runtime.manager      starting metrics server {&amp;quot;path&amp;quot;: &amp;quot;/metrics&amp;quot;}
+2019-08-25T12:55:45.819+0900    INFO    controller-runtime.controller   Starting Controller     {&amp;quot;controller&amp;quot;: &amp;quot;memcached&amp;quot;}
+2019-08-25T12:55:45.920+0900    INFO    controller-runtime.controller   Starting workers        {&amp;quot;controller&amp;quot;: &amp;quot;memcached&amp;quot;, &amp;quot;worker count&amp;quot;: 1}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Memcached 리소스를 생성합니다.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl apply -f config/samples/
+memcached.cache.example.com/memcached-sample created
+$
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;컨트롤러의 Reconcile() 메소드가 Memcached 리소스 추가 이벤트로 인해 호출됐고, Deployment와 Service가 생성 된 것을 로그에서 볼 수 있습니다.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;2019-08-25T12:57:15.942+0900    INFO    controllers.Memcached   Reconciling Memcached   {&amp;quot;memcached&amp;quot;: &amp;quot;default/memcached-sample&amp;quot;}
+2019-08-25T12:57:15.942+0900    INFO    controllers.Memcached   Creating a new Deployment       {&amp;quot;memcached&amp;quot;: &amp;quot;default/memcached-sample&amp;quot;, &amp;quot;Deployment.Namespace&amp;quot;: &amp;quot;default&amp;quot;, &amp;quot;Deployment.Name&amp;quot;: &amp;quot;memcached-sample&amp;quot;}
+2019-08-25T12:57:15.960+0900    INFO    controllers.Memcached   Reconciling Memcached   {&amp;quot;memcached&amp;quot;: &amp;quot;default/memcached-sample&amp;quot;}
+2019-08-25T12:57:15.960+0900    INFO    controllers.Memcached   Creating a new Service  {&amp;quot;memcached&amp;quot;: &amp;quot;default/memcached-sample&amp;quot;, &amp;quot;Service.Namespace&amp;quot;: &amp;quot;default&amp;quot;, &amp;quot;Service.Name&amp;quot;: &amp;quot;memcached-sample&amp;quot;}
+2019-08-25T12:57:15.968+0900    INFO    controllers.Memcached   Reconciling Memcached   {&amp;quot;memcached&amp;quot;: &amp;quot;default/memcached-sample&amp;quot;}
+2019-08-25T12:57:16.077+0900    DEBUG   controller-runtime.controller   Successfully Reconciled {&amp;quot;controller&amp;quot;: &amp;quot;memcached&amp;quot;, &amp;quot;request&amp;quot;: &amp;quot;default/memcached-sample&amp;quot;}
+2019-08-25T12:57:16.077+0900    INFO    controllers.Memcached   Reconciling Memcached   {&amp;quot;memcached&amp;quot;: &amp;quot;default/memcached-sample&amp;quot;}
+2019-08-25T12:57:16.078+0900    DEBUG   controller-runtime.controller   Successfully Reconciled {&amp;quot;controller&amp;quot;: &amp;quot;memcached&amp;quot;, &amp;quot;request&amp;quot;: &amp;quot;default/memcached-sample&amp;quot;}
+2019-08-25T12:57:17.106+0900    INFO    controllers.Memcached   Reconciling Memcached   {&amp;quot;memcached&amp;quot;: &amp;quot;default/memcached-sample&amp;quot;}
+2019-08-25T12:57:17.106+0900    DEBUG   controller-runtime.controller   Successfully Reconciled {&amp;quot;controller&amp;quot;: &amp;quot;memcached&amp;quot;, &amp;quot;request&amp;quot;: &amp;quot;default/memcached-sample&amp;quot;}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Memcached 리소스와 더불어 Deployment, Pod, Service가 생성 된 것을 &lt;code&gt;kubectl get&lt;/code&gt; 명령으로 확인 할 수 있습니다.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl get memcacheds,deployments,pods,services
+NAME                                           AGE
+memcached.cache.example.com/memcached-sample   1m10s
+
+NAME                                     READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.extensions/memcached-sample   1/1     1            1           1m10s
+
+NAME                                    READY   STATUS    RESTARTS   AGE
+pod/memcached-sample-79ccbbbbcb-nchrk   1/1     Running   0          1m10s
+
+NAME                       TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)     AGE
+service/kubernetes         ClusterIP   10.96.0.1    &amp;lt;none&amp;gt;        443/TCP     12m
+service/memcached-sample   ClusterIP   None         &amp;lt;none&amp;gt;        11211/TCP   1m10s
+$
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Memcached가 정상 동작하는지 &lt;code&gt;stats&lt;/code&gt; 명령으로 확인합니다.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl run -it --rm --restart=Never alpine --image=alpine -- sh -c &#39;echo stats | nc memcached-sample 11211 | grep uptime&#39;
+STAT uptime 51
+pod &amp;quot;alpine&amp;quot; deleted
+$
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;리소스-삭제하기&#34;&gt;리소스 삭제하기&lt;/h3&gt;
+
+&lt;p&gt;컨트롤러를 중단하고 Memcached CRD를 삭제하면 Memcached 리소스와 하위 리소스가 모두 삭제됩니다.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl delete crds memcacheds.cache.example.com
+customresourcedefinition.apiextensions.k8s.io &amp;quot;memcacheds.cache.example.com&amp;quot; deleted
+$
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=&#34;배포하기&#34;&gt;배포하기&lt;/h2&gt;
+
+&lt;p&gt;컨트롤러가 정상 동작하는지 확인했습니다. 이제 컨트롤러가 클러스터에서 실행되도록 배포합니다. &lt;code&gt;make deploy&lt;/code&gt; 명령으로 필요한 리소스를 모두 설치 할 수 있습니다.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ make deploy
+/Users/youngchul/go/bin/controller-gen &amp;quot;crd:trivialVersions=true&amp;quot; rbac:roleName=manager-role webhook paths=&amp;quot;./...&amp;quot; output:crd:artifacts:config=config/crd/bases
+cd config/manager &amp;amp;&amp;amp; kustomize edit set image controller=youngchul/memcached-controller:latest
+kustomize build config/default | kubectl apply -f -
+namespace/memcached-controller-system created
+customresourcedefinition.apiextensions.k8s.io/memcacheds.cache.example.com created
+role.rbac.authorization.k8s.io/memcached-controller-leader-election-role created
+clusterrole.rbac.authorization.k8s.io/memcached-controller-manager-role created
+clusterrole.rbac.authorization.k8s.io/memcached-controller-proxy-role created
+rolebinding.rbac.authorization.k8s.io/memcached-controller-leader-election-rolebinding created
+clusterrolebinding.rbac.authorization.k8s.io/memcached-controller-manager-rolebinding created
+clusterrolebinding.rbac.authorization.k8s.io/memcached-controller-proxy-rolebinding created
+service/memcached-controller-controller-manager-metrics-service created
+deployment.apps/memcached-controller-controller-manager created
+$
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;컨트롤러가 &lt;code&gt;memcached-controller-system&lt;/code&gt; 네임스페이스의 &lt;code&gt;memcached-controller-controller-manager&lt;/code&gt; Deployment와 Pod에서 정상적으로 실행되고 있는지 확인 할 수 있습니다.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kubectl get deployments,pods -n memcached-controller-system
+NAME                                                            READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.extensions/memcached-controller-controller-manager   1/1     1            1           60s
+
+NAME                                                           READY   STATUS    RESTARTS   AGE
+pod/memcached-controller-controller-manager-69c57668dc-hv7tf   2/2     Running   0          60s
+$
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;리소스-삭제하기-1&#34;&gt;리소스 삭제하기&lt;/h3&gt;
+
+&lt;p&gt;만약 배포된 모든 리소스를 삭제하려면, 아래 명령을 실행합니다.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ kustomize build config/default | kubectl delete -f -
+namespace &amp;quot;memcached-controller-system&amp;quot; deleted
+customresourcedefinition.apiextensions.k8s.io &amp;quot;memcacheds.cache.example.com&amp;quot; deleted
+role.rbac.authorization.k8s.io &amp;quot;memcached-controller-leader-election-role&amp;quot; deleted
+clusterrole.rbac.authorization.k8s.io &amp;quot;memcached-controller-manager-role&amp;quot; deleted
+clusterrole.rbac.authorization.k8s.io &amp;quot;memcached-controller-proxy-role&amp;quot; deleted
+rolebinding.rbac.authorization.k8s.io &amp;quot;memcached-controller-leader-election-rolebinding&amp;quot; deleted
+clusterrolebinding.rbac.authorization.k8s.io &amp;quot;memcached-controller-manager-rolebinding&amp;quot; deleted
+clusterrolebinding.rbac.authorization.k8s.io &amp;quot;memcached-controller-proxy-rolebinding&amp;quot; deleted
+service &amp;quot;memcached-controller-controller-manager-metrics-service&amp;quot; deleted
+deployment.apps &amp;quot;memcached-controller-controller-manager&amp;quot; deleted
+$
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=&#34;마무리&#34;&gt;마무리&lt;/h2&gt;
+
+&lt;p&gt;Kubebuilder v2 버전을 사용해서 Memcached Controller 만드는 방법을 살펴보고 테스트 했습니다. client-go 라이브러리를 직접 이용하는 방식에 비해 작성해야 하는 코드가 적고, 좀 더 직관적으로 컨트롤러 구조와 코드를 이해하고 작성 할 수 있었습니다. Kubebuilder 하위 프로젝트인 &lt;a href=&#34;https://github.com/kubernetes-sigs/controller-runtime&#34; target=&#34;_blank&#34;&gt;controller-runtime&lt;/a&gt;과 &lt;a href=&#34;https://github.com/kubernetes-sigs/controller-tools&#34; target=&#34;_blank&#34;&gt;controller-tools&lt;/a&gt; 덕분입니다.&lt;/p&gt;
+
+&lt;p&gt;여러 Kubernetes 프로젝트에서 Kubebuilder를 사용하고 있습니다. 예를 들어, &lt;a href=&#34;https://github.com/kubernetes-sigs/cluster-api&#34; target=&#34;_blank&#34;&gt;Cluster API&lt;/a&gt; 프로젝트에서 Kubebuilder를 사용하고, &lt;a href=&#34;https://cluster-api.sigs.k8s.io/provider_implementations/overview.html&#34; target=&#34;_blank&#34;&gt;Cluster API Provider&lt;/a&gt; 개발에도 사용되고 있습니다. Cluster API는 Kubernetes APIs처럼 선언적인 방식을 통해 Kubernetes 클러스터를 만들고 관리하려고 하는 프로젝트입니다. Kubebuilder 사용 및 이해를 통해 Kubernetes와 관련 프로젝트 코드를 보다 쉽게 이해하고 접근하는데 도움이 되면 좋겠습니다.&lt;/p&gt;
+</content>
+      
+    </item>
+    
+    <item>
       <title>북해도 여행 2019</title>
       <link>https://youngchul.github.io/posts/hokkaido-2019/</link>
       <pubDate>Sun, 14 Jul 2019 00:00:00 +0000</pubDate>

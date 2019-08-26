@@ -1,15 +1,15 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes" ?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
   <channel>
-    <title>Posts on youngchul&#39;s website</title>
-    <link>https://youngchul.github.io/posts/</link>
-    <description>Recent content in Posts on youngchul&#39;s website</description>
+    <title>Kubernetes on youngchul&#39;s website</title>
+    <link>https://youngchul.github.io/tags/kubernetes/</link>
+    <description>Recent content in Kubernetes on youngchul&#39;s website</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en</language>
     <copyright>&amp;copy; 2019 방영철 (Youngchul Bang)</copyright>
     <lastBuildDate>Mon, 26 Aug 2019 00:00:00 +0000</lastBuildDate>
     
-	<atom:link href="https://youngchul.github.io/posts/index.xml" rel="self" type="application/rss+xml" />
+	<atom:link href="https://youngchul.github.io/tags/kubernetes/index.xml" rel="self" type="application/rss+xml" />
     
     
     <item>
@@ -20,17 +20,6 @@
       <guid>https://youngchul.github.io/posts/kubernetes-controller-using-kubebuilder/</guid>
       <description>Kubernetes Custom Controller를 Go 언어로 만드는 방법은 다양합니다. client-go 라이브러리를 이용해서 Kubernetes API를 직접 호출하는 방식을 주로 사용하지만, sample-controller 예제에서 볼 수 있듯이 client-go 라이브리의 동작방식과 컴포넌트들를 이해하고 알맞게 사용해야 합니다. Kubebuilder 또는 Operator SDK 프레임워크가 client-go 라이브러리를 올바른 방식으로 사용해서 Kubernetes Controller를 보다 쉽게 만들 수 있도록 도와줍니다.
 이 글에서는 Kubebuilder v2 버전을 사용해서 Memcached Controller 만드는 방법을 소개합니다. Memcached Controller 코드는 Operator SDK 예제 중 하나인 memcached-operator를 참고했습니다.</description>
-    </item>
-    
-    <item>
-      <title>북해도 여행 2019</title>
-      <link>https://youngchul.github.io/posts/hokkaido-2019/</link>
-      <pubDate>Sun, 14 Jul 2019 00:00:00 +0000</pubDate>
-      
-      <guid>https://youngchul.github.io/posts/hokkaido-2019/</guid>
-      <description>5월 말에 삿포로 주변 북해도를 여행했습니다. 성인 네 명과 미취학 어린이 한 명이 2019년 5월 26일부터 6월 1일까지 6박 7일 동안 렌트카로 이동하며 세 곳의 숙소에서 머물렀습니다. 날씨가 청명하고, 음식이 맛있고, 한적하고 여유로워서 즐거운 시간을 보냈습니다. 늦은 봄 북해도는 부모님을 모시고 어린이와 함께 여행하기 딱 좋은 시기였습니다.
-항공권 항공권은 대한항공 홈페이지에서 구입했습니다. 인천&amp;ndash;신치토세 구간 성인 한 명이 왕복 24만원이고, 다섯 명 모두 합쳐 118만원이었습니다.
-숙소 숙소는 토마무에서 이틀, 삿포로에서 삼일, 노보리베츠에서 하루 묵었습니다.</description>
     </item>
     
   </channel>
