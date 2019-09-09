@@ -93,7 +93,7 @@
     <div class="content">
       
 
-<p><a href="https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/#custom-controllers" target="_blank">Kubernetes Custom Controller</a>를 Go 언어로 만드는 방법은 다양합니다. <a href="https://github.com/kubernetes/client-go" target="_blank">client-go</a> 라이브러리를 이용해서 <a href="https://kubernetes.io/docs/concepts/overview/kubernetes-api/" target="_blank">Kubernetes API</a>를 직접 호출하는 방식을 주로 사용하지만, <a href="https://github.com/kubernetes/sample-controller" target="_blank">sample-controller</a> 예제에서 볼 수 있듯이 <a href="https://github.com/kubernetes/sample-controller/blob/master/docs/controller-client-go.md" target="_blank">client-go 라이브리의 동작방식과 컴포넌트들</a>를 이해하고 알맞게 사용해야 합니다. <a href="https://github.com/kubernetes-sigs/kubebuilder" target="_blank">Kubebuilder</a> 또는 <a href="https://github.com/operator-framework/operator-sdk" target="_blank">Operator SDK</a> 프레임워크가 client-go 라이브러리를 올바른 방식으로 사용해서 Kubernetes Controller를 보다 쉽게 만들 수 있도록 도와줍니다.</p>
+<p><a href="https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/#custom-controllers" target="_blank">Kubernetes Custom Controller</a>를 Go 언어로 만드는 방법은 다양합니다. <a href="https://github.com/kubernetes/client-go" target="_blank">client-go</a> 라이브러리를 이용해서 <a href="https://kubernetes.io/docs/concepts/overview/kubernetes-api/" target="_blank">Kubernetes API</a>를 직접 호출하는 방식을 주로 사용하지만, <a href="https://github.com/kubernetes/sample-controller" target="_blank">sample-controller</a> 예제에서 볼 수 있듯이 <a href="https://github.com/kubernetes/sample-controller/blob/kubernetes-1.15.3/docs/controller-client-go.md#client-go-under-the-hood" target="_blank">client-go 라이브리의 동작방식과 컴포넌트들</a>을 이해하고 알맞게 사용해야 합니다. <a href="https://github.com/kubernetes-sigs/kubebuilder" target="_blank">Kubebuilder</a> 또는 <a href="https://github.com/operator-framework/operator-sdk" target="_blank">Operator SDK</a> 프레임워크가 client-go 라이브러리를 올바른 방식으로 사용해서 Kubernetes Controller를 보다 쉽게 만들 수 있도록 도와줍니다.</p>
 
 <p>이 글에서는 Kubebuilder v2 버전을 사용해서 Memcached Controller 만드는 방법을 소개합니다. Memcached Controller 코드는 Operator SDK 예제 중 하나인 <a href="https://github.com/operator-framework/operator-sdk-samples/tree/master/memcached-operator" target="_blank">memcached-operator</a>를 참고했습니다. 결과물은 <a href="https://github.com/youngchul/memcached-controller" target="_blank">memcached-controller</a> 저장소에 있습니다.</p>
 
@@ -330,12 +330,20 @@ go run ./main.go
 
 <p>Memcached 리소스를 생성합니다.</p>
 
-<pre><code>$ kubectl apply -f config/samples/
+<pre><code>$ cat config/samples/*
+apiVersion: cache.example.com/v1alpha1
+kind: Memcached
+metadata:
+  name: memcached-sample
+  spec:
+    size: 1
+$
+$ kubectl apply -f config/samples/
 memcached.cache.example.com/memcached-sample created
 $
 </code></pre>
 
-<p>컨트롤러의 Reconcile() 메소드가 Memcached 리소스 추가 이벤트로 인해 호출됐고, Deployment와 Service가 생성 된 것을 로그에서 볼 수 있습니다.</p>
+<p>Memcached 리소스 추가 이벤트로 인해 컨트롤러의 Reconcile() 메소드가 호출됐고, Deployment와 Service가 생성 된 것을 로그에서 볼 수 있습니다.</p>
 
 <pre><code>2019-08-25T12:57:15.942+0900    INFO    controllers.Memcached   Reconciling Memcached   {&quot;memcached&quot;: &quot;default/memcached-sample&quot;}
 2019-08-25T12:57:15.942+0900    INFO    controllers.Memcached   Creating a new Deployment       {&quot;memcached&quot;: &quot;default/memcached-sample&quot;, &quot;Deployment.Namespace&quot;: &quot;default&quot;, &quot;Deployment.Name&quot;: &quot;memcached-sample&quot;}
@@ -375,9 +383,7 @@ pod &quot;alpine&quot; deleted
 $
 </code></pre>
 
-<h3 id="리소스-삭제하기">리소스 삭제하기</h3>
-
-<p>컨트롤러를 중단하고 Memcached CRD를 삭제하면 Memcached 리소스와 하위 리소스가 모두 삭제됩니다.</p>
+<p>컨트롤러가 제대로 동작하는지 확인했습니다. 이제 테스트를 끝냅니다. 컨트롤러를 중단하고 Memcached CRD를 삭제하면 Memcached 리소스와 하위 리소스도 모두 삭제됩니다.</p>
 
 <pre><code>$ kubectl delete crds memcacheds.cache.example.com
 customresourcedefinition.apiextensions.k8s.io &quot;memcacheds.cache.example.com&quot; deleted
@@ -386,7 +392,7 @@ $
 
 <h2 id="배포하기">배포하기</h2>
 
-<p>컨트롤러가 정상 동작하는지 확인했습니다. 이제 컨트롤러가 클러스터에서 실행되도록 배포합니다. <code>make deploy</code> 명령으로 필요한 리소스를 모두 설치 할 수 있습니다.</p>
+<p>컨트롤러가 클러스터에서 실행되도록 배포 할 차례입니다. <code>make deploy</code> 명령으로 필요한 리소스를 모두 설치 할 수 있습니다.</p>
 
 <pre><code>$ make deploy
 /Users/youngchul/go/bin/controller-gen &quot;crd:trivialVersions=true&quot; rbac:roleName=manager-role webhook paths=&quot;./...&quot; output:crd:artifacts:config=config/crd/bases
@@ -416,7 +422,9 @@ pod/memcached-controller-controller-manager-69c57668dc-hv7tf   2/2     Running  
 $
 </code></pre>
 
-<h3 id="리소스-삭제하기-1">리소스 삭제하기</h3>
+<p>이제부터는 Memcached 리소스를 만들어서 사용 할 수 있습니다.</p>
+
+<h3 id="리소스-삭제하기">리소스 삭제하기</h3>
 
 <p>만약 배포된 모든 리소스를 삭제하려면, 아래 명령을 실행합니다.</p>
 
